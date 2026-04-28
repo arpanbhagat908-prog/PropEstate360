@@ -1,5 +1,5 @@
 // ─── API Utility ─────────────────────────────────────────────────────────────
-const BASE = '/api';
+const BASE = 'https://propestate360.onrender.com/api';
 
 function getToken() { return localStorage.getItem('pe360_token') || ''; }
 
