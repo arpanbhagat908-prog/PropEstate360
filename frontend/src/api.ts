@@ -10,10 +10,12 @@ async function req(method: string, url: string, body?: any, isFormData = false) 
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(BASE + url, {
-    method,
-    headers,
-    body: isFormData ? body : body ? JSON.stringify(body) : undefined,
-  });
+  method,
+  headers,
+  credentials: "include", // ⭐ VERY IMPORTANT
+  body: isFormData ? body : body ? JSON.stringify(body) : undefined,
+});
+
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw Object.assign(new Error(data.error || `Request failed (${res.status})`), data);
   return data;
