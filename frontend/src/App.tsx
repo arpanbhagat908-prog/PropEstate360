@@ -6,15 +6,6 @@ import {
 import { api, saveUser, loadUser, clearUser, fmtPrice, timeAgo, calcEMI } from './api';
 import { INDIA_STATES, PUNJAB_DISTRICTS, PROPERTY_TYPES, AMENITIES_LIST, TYPE_EMOJI, STATE_DISTRICTS } from './constants';
 
-const getImageUrl = (photo?: string) => {
-  if (!photo) {
-    return 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&q=90';
-  }
-  return photo.startsWith('/uploads/')
-    ? `http://localhost:3001${photo}`
-    : photo;
-};
-
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1766,7 +1757,7 @@ function Dashboard({ nav, user, setUser, doLogout, msg }: any) {
                   </div>
                 ) : myProps.map(p => (
                   <div key={p.id} className="card-flat" style={{ display: 'flex', gap: 16, padding: 16, marginBottom: 12, alignItems: 'center' }}>
-                    <img src={p.photos?.[0] || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&q=90'} alt=""
+                  <img src={(() => { const raw = p.photos?.[0] || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&q=90'; return raw.startsWith('/uploads/') ? `http://localhost:3001${raw}` : raw; })()} alt=""
                       style={{ width: 90, height: 68, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }}
                       onError={e => { e.currentTarget.style.display='none'; }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -2016,6 +2007,8 @@ function ListProperty({ nav, user, msg, editId }: any) {
         else fd.append(k, String(v));
       });
       photos.forEach(p => fd.append('photos', p));
+      // Send existing photo URLs so the backend knows which ones to keep
+      existingPhotos.forEach(url => fd.append('existingPhotos', url));
 
       if (editId) await api.updateProperty(editId, fd);
       else await api.addProperty(fd);
@@ -2151,6 +2144,11 @@ function ListProperty({ nav, user, msg, editId }: any) {
                     <div key={i} style={{ position:'relative' }}>
                       <img src={src.startsWith('/uploads/') ? `http://localhost:3001${src}` : src}
                         alt="" style={{ width:90, height:70, objectFit:'cover', borderRadius:8, border:'2px solid var(--blue4)' }} />
+                      <button
+                        style={{ position:'absolute', top:-6, right:-6, background:'var(--red)', color:'#fff', border:'none', borderRadius:'50%', width:22, height:22, fontSize:12, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}
+                        onClick={() => setExistingPhotos(prev => prev.filter((_, j) => j !== i))}>
+                        ×
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -2166,7 +2164,7 @@ function ListProperty({ nav, user, msg, editId }: any) {
               <p style={{ fontWeight: 600, color: 'var(--blue)', marginTop: 8 }}>Drop photos here or click to upload</p>
               <p style={{ fontSize: 13, color: 'var(--slate2)', marginTop: 4 }}>JPG, PNG up to 15MB each</p>
               <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
-                onChange={e => addPhotos(Array.from(e.target.files || []))} />
+                onChange={e => { addPhotos(Array.from(e.target.files || [])); e.target.value = ''; }} />
             </div>
             {previews.length > 0 && (
               <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
