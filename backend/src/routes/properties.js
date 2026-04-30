@@ -345,10 +345,10 @@ router.put('/:id', authMiddleware, upload.array('photos', 8), (req, res) => {
 
   // Handle new photo uploads
   let photos = JSON.parse(prop.photos || '[]');
-  if (req.files?.length) {
-    const newPhotos = req.files.map(f => `/uploads/${f.filename}`);
-    photos = [...photos, ...newPhotos].slice(0, 8);
-  }
+
+if (req.files?.length) {
+  photos = req.files.map(f => `/uploads/${f.filename}`); // ✅ overwrite
+}
 
   db.prepare(`UPDATE properties SET
     title=COALESCE(?,title), type=COALESCE(?,type), listing=COALESCE(?,listing),
