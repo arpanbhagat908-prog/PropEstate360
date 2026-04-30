@@ -3230,19 +3230,43 @@ function AIAssistant({ nav, user, msg }: any) {
   }, [messages]);
 
   const send = async () => {
-    if (!input.trim() || loading) return;
-    const userMsg = input.trim();
-    setInput('');
-    setMessages(m => [...m, { role:'user', text: userMsg }]);
-    setLoading(true);
-    try {
-      const d = await api.aiChat(userMsg, messages.slice(-8));
-      setMessages(m => [...m, { role:'ai', text: d.reply }]);
-    } catch {
-      setMessages(m => [...m, { role:'ai', text:'⚠️ I encountered an error. Please try again!' }]);
-    }
-    setLoading(false);
-  };
+  if (!input.trim() || loading) return;
+
+  const userMsg = input.trim();
+  setInput('');
+
+  // ✅ create updated messages FIRST
+  const updatedMessages = [
+    ...messages,
+    { role: 'user', text: userMsg }
+  ];
+
+  setMessages(updatedMessages);
+setLoading(true);
+
+try {
+  const formattedHistory = updatedMessages.slice(-8).map(m => ({
+    role: m.role === 'ai' ? 'assistant' : 'user',
+    content: m.text
+  }));
+
+  const d = await api.aiChat(userMsg, formattedHistory);
+
+  setMessages(m => [
+    ...m,
+    { role: 'ai', text: d.reply || "⚠️ No response from AI" }
+  ]);
+
+  } catch (err) {
+    console.error("AI ERROR:", err); // ✅ DEBUG
+    setMessages(m => [
+      ...m,
+      { role:'ai', text:'⚠️ I encountered an error. Please try again!' }
+    ]);
+  } finally {
+    setLoading(false); // ✅ FIXED PROPERLY
+  }
+};
 
   const SUGGESTIONS = [
     '🔍 Find 3BHK in Ludhiana under 80 lakh',
