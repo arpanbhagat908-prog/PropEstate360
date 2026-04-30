@@ -6,6 +6,15 @@ import {
 import { api, saveUser, loadUser, clearUser, fmtPrice, timeAgo, calcEMI } from './api';
 import { INDIA_STATES, PUNJAB_DISTRICTS, PROPERTY_TYPES, AMENITIES_LIST, TYPE_EMOJI, STATE_DISTRICTS } from './constants';
 
+const getImageUrl = (photo?: string) => {
+  if (!photo) {
+    return 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&q=90';
+  }
+  return photo.startsWith('/uploads/')
+    ? `http://localhost:3001${photo}`
+    : photo;
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════
