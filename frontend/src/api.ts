@@ -1,6 +1,7 @@
 // ─── API Utility ─────────────────────────────────────────────────────────────
 // VITE_API_URL must be set to your Render backend URL in Vercel env vars
 // e.g. https://your-backend.onrender.com
+
 // Leave empty for local dev (uses Vite proxy)
 const BASE = (import.meta.env.VITE_API_URL || '') + '/api';
 
