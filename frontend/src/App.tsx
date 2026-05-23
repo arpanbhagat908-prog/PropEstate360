@@ -2224,6 +2224,11 @@ function ListProperty({ nav, user, msg, editId }: any) {
                     <div key={i} style={{ position:'relative' }}>
                       <img src={resolvePhoto(src, FALLBACK_PHOTO)}
                         alt="" style={{ width:90, height:70, objectFit:'cover', borderRadius:8, border:'2px solid var(--blue4)' }} />
+                      <button
+                        style={{ position:'absolute', top:-6, right:-6, background:'var(--red)', color:'#fff', border:'none', borderRadius:'50%', width:22, height:22, fontSize:12, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}
+                        onClick={() => setExistingPhotos(prev => prev.filter((_, j) => j !== i))}>
+                        ×
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -2239,7 +2244,7 @@ function ListProperty({ nav, user, msg, editId }: any) {
               <p style={{ fontWeight: 600, color: 'var(--blue)', marginTop: 8 }}>Drop photos here or click to upload</p>
               <p style={{ fontSize: 13, color: 'var(--slate2)', marginTop: 4 }}>JPG, PNG up to 15MB each</p>
               <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
-                onChange={e => addPhotos(Array.from(e.target.files || []))} />
+                onChange={e => { addPhotos(Array.from(e.target.files || [])); e.target.value = ''; }} />
             </div>
             {previews.length > 0 && (
               <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
