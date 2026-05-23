@@ -3,7 +3,7 @@
 // e.g. https://your-backend.onrender.com
 
 // Leave empty for local dev (uses Vite proxy)
-const BASE = (import.meta.env.VITE_API_URL || '') + '/api';
+const BASE = (import.meta.env.VITE_API_URL || 'https://propestate360.onrender.com') + '/api';
 
 function getToken() { return localStorage.getItem('pe360_token') || ''; }
 
