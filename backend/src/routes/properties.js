@@ -1,29 +1,7 @@
 // ─── PROPERTY ROUTES ────────────────────────────────────────────────────────
 const router = require('express').Router();
-const multer = require('multer');
-const path   = require('path');
-const fs     = require('fs');
 const db     = require('../db/database');
-const { authMiddleware, adminOnly } = require('../middleware/auth');
-
-// ── Multer setup ─────────────────────────────────────────────────────────────
-const uploadsDir = path.join(__dirname, '../../uploads');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadsDir),
-  filename:    (req, file, cb) => {
-    cb(null, `prop-${Date.now()}-${Math.round(Math.random()*1e6)}${path.extname(file.originalname)}`);
-  },
-});
-const upload = multer({
-  storage,
-  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB for high quality
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Only image files are allowed'));
-  },
-});
+const { authMiddleware } = require('../middleware/auth');
 
 // ── State → Districts mapping (for validation) ────────────────────────────
 const STATE_DISTRICTS = {
@@ -50,6 +28,15 @@ function parseProperty(p) {
   };
 }
 
+// Sanitize photos: only accept base64 data URLs or external http URLs
+function sanitizePhotos(photos) {
+  if (!Array.isArray(photos)) return [];
+  return photos.filter(p =>
+    typeof p === 'string' &&
+    (p.startsWith('data:image/') || p.startsWith('http'))
+  ).slice(0, 8);
+}
+
 // ── GET /api/properties ───────────────────────────────────────────────────────
 router.get('/', (req, res) => {
   const { state, district, type, listing, minPrice, maxPrice, beds, q, sort, featured, status, posted_by } = req.query;
@@ -63,7 +50,7 @@ router.get('/', (req, res) => {
   else { sql += ' AND p.status=?'; params.push(status); }
 
   if (state)     { sql += ' AND p.state=?';      params.push(state); }
-  if (district)  { sql += ' AND LOWER(p.district)=LOWER(?)';   params.push(district); }
+  if (district)  { sql += ' AND LOWER(p.district)=LOWER(?)'; params.push(district); }
   if (type)      { sql += ' AND p.type=?';        params.push(type); }
   if (listing)   { sql += ' AND p.listing=?';     params.push(listing); }
   if (minPrice)  { sql += ' AND p.price>=?';      params.push(parseInt(minPrice)); }
@@ -77,10 +64,10 @@ router.get('/', (req, res) => {
     params.push(like, like, like, like, like);
   }
 
-  if (sort === 'price_asc')   sql += ' ORDER BY p.price ASC';
+  if (sort === 'price_asc')       sql += ' ORDER BY p.price ASC';
   else if (sort === 'price_desc') sql += ' ORDER BY p.price DESC';
-  else if (sort === 'newest') sql += ' ORDER BY p.created_at DESC';
-  else sql += ' ORDER BY p.featured DESC, p.created_at DESC';
+  else if (sort === 'newest')     sql += ' ORDER BY p.created_at DESC';
+  else                            sql += ' ORDER BY p.featured DESC, p.created_at DESC';
 
   const rows = db.prepare(sql).all(...params);
   const properties = rows.map(row => {
@@ -102,7 +89,6 @@ router.get('/states-summary', (req, res) => {
 });
 
 // ── GET /api/properties/state-breakdown ─────────────────────────────────────
-// Punjab → all districts; Other states → their districts
 router.get('/state-breakdown', (req, res) => {
   const { state } = req.query;
   if (!state) return res.status(400).json({ error: 'state param required' });
@@ -116,50 +102,34 @@ router.get('/state-breakdown', (req, res) => {
       `SELECT district, COUNT(*) as count, AVG(price) as avg_price FROM properties
        WHERE status='active' AND state='Punjab' GROUP BY district ORDER BY count DESC`
     ).all();
-
     const withFeatured = districts.map(d => {
       const featured = db.prepare(
         `SELECT * FROM properties WHERE status='active' AND state='Punjab' AND district=?
          ORDER BY featured DESC, created_at DESC LIMIT 3`
       ).all(d.district).map(parseProperty);
-      return {
-        district: d.district,
-        count: d.count,
-        avg_price: Math.round(d.avg_price || 0),
-        featured,
-      };
+      return { district: d.district, count: d.count, avg_price: Math.round(d.avg_price || 0), featured };
     });
-
     return res.json({ type: 'punjab', state: 'Punjab', total, breakdown: withFeatured });
   }
 
-  // Other states: show their own districts
   const districtRows = db.prepare(
     `SELECT district, COUNT(*) as count, AVG(price) as avg_price
      FROM properties WHERE status='active' AND state=?
      GROUP BY district ORDER BY count DESC`
   ).all(state);
-
   const withFeatured = districtRows.map(d => {
     const featured = db.prepare(
       `SELECT * FROM properties WHERE status='active' AND state=? AND district=?
        ORDER BY featured DESC, created_at DESC LIMIT 3`
     ).all(state, d.district).map(parseProperty);
-    return {
-      district: d.district,
-      count: d.count,
-      avg_price: Math.round(d.avg_price || 0),
-      featured,
-    };
+    return { district: d.district, count: d.count, avg_price: Math.round(d.avg_price || 0), featured };
   });
-
   res.json({ type: 'other', state, total, breakdown: withFeatured });
 });
 
 // ── GET /api/properties/trends ────────────────────────────────────────────────
 router.get('/trends', (req, res) => {
   const { state = 'Punjab', district, type = 'house', listing = 'sale' } = req.query;
-
   let rows = [];
   if (district) {
     rows = db.prepare(
@@ -172,8 +142,6 @@ router.get('/trends', (req, res) => {
        WHERE state=? AND property_type=? AND listing_type=? GROUP BY year, month ORDER BY year, month`
     ).all(state, type, listing);
   }
-
-  // Real avg from actual listings
   let realQuery;
   const realParams = [];
   if (district) {
@@ -186,20 +154,38 @@ router.get('/trends', (req, res) => {
     realParams.push(state, type, listing);
   }
   const realRow = db.prepare(realQuery).get(...realParams);
+  res.json({ trends: rows, real_avg_price_per_sqft: realRow?.avg_ppsf ? Math.round(realRow.avg_ppsf) : null });
+});
 
-  res.json({
-    trends: rows,
-    real_avg_price_per_sqft: realRow?.avg_ppsf ? Math.round(realRow.avg_ppsf) : null,
+// ── GET /api/properties/trends/available ───────────────────────────────────────
+// Returns distinct states and districts that have price history data available
+router.get('/trends/available', (req, res) => {
+  const { type = 'house', listing = 'sale' } = req.query;
+  
+  // Get distinct states and their districts that have price history data
+  const rows = db.prepare(
+    `SELECT DISTINCT state, district FROM price_history 
+     WHERE property_type=? AND listing_type=?
+     ORDER BY state, district`
+  ).all(type, listing);
+  
+  // Group by state for easier frontend processing
+  const stateDistricts = {};
+  rows.forEach(row => {
+    if (!stateDistricts[row.state]) {
+      stateDistricts[row.state] = [];
+    }
+    stateDistricts[row.state].push(row.district);
   });
+  
+  res.json({ states: Object.keys(stateDistricts).sort(), stateDistricts });
 });
 
 // ── GET /api/properties/user/wishlist ─────────────────────────────────────────
 router.get('/user/wishlist', authMiddleware, (req, res) => {
   const rows = db.prepare(
-    `SELECT p.* FROM properties p
-     JOIN wishlist w ON p.id=w.property_id
-     WHERE w.user_id=? AND p.status='active'
-     ORDER BY w.created_at DESC`
+    `SELECT p.* FROM properties p JOIN wishlist w ON p.id=w.property_id
+     WHERE w.user_id=? AND p.status='active' ORDER BY w.created_at DESC`
   ).all(req.user.id);
   res.json({ properties: rows.map(parseProperty) });
 });
@@ -224,7 +210,6 @@ router.get('/user/wishlist-ids', authMiddleware, (req, res) => {
 });
 
 // ── GET /api/properties/trending ─────────────────────────────────────────────
-// Based on wishlist activity + recency
 router.get('/trending', (req, res) => {
   const { district, state } = req.query;
   let sql = `
@@ -238,7 +223,6 @@ router.get('/trending', (req, res) => {
   if (state)    { sql += ' AND p.state=?';    params.push(state); }
   if (district) { sql += ' AND LOWER(p.district)=LOWER(?)'; params.push(district); }
   sql += ' GROUP BY p.id ORDER BY wish_count DESC, p.featured DESC, p.created_at DESC LIMIT 8';
-
   const rows = db.prepare(sql).all(...params);
   const properties = rows.map(row => {
     const p = parseProperty(row);
@@ -265,49 +249,41 @@ router.get('/:id', (req, res) => {
 });
 
 // ── POST /api/properties ──────────────────────────────────────────────────────
-router.post('/', authMiddleware, upload.array('photos', 8), (req, res) => {
+// FIX: Accepts photos as base64 data URLs in JSON body (no filesystem needed)
+// Frontend should convert images to base64 before sending
+router.post('/', authMiddleware, (req, res) => {
+  console.log('[PROP] Create property request body:', req.body);
   const u = req.user;
-  // Only approved agents and admins can list
-  if (u.role === 'buyer') {
-    return res.status(403).json({ error: 'Buyers cannot list properties.' });
-  }
-  if (u.role === 'agent' && u.agent_status !== 'approved') {
+  if (u.role === 'buyer') return res.status(403).json({ error: 'Buyers cannot list properties.' });
+  if (u.role === 'agent' && u.agent_status !== 'approved')
     return res.status(403).json({ error: 'Your agent account is not yet approved.' });
-  }
 
-  const { title, type, listing, state, district, locality, price, area, beds, baths, floors,
-          description, amenities, featured, agent_name, agent_phone, agent_email } = req.body;
+  const {
+    title, type, listing, state, district, locality, price, area, beds, baths, floors,
+    description, amenities, featured, agent_name, agent_phone, agent_email,
+    photos: photosRaw,
+  } = req.body;
 
-  if (!title || !district || !price) {
+  if (!title || !district || !price)
     return res.status(400).json({ error: 'Title, district and price are required' });
-  }
 
-  // Validate state-district consistency for Punjab
   const selectedState = state || 'Punjab';
-  if (selectedState === 'Punjab' && district) {
-    const validDistricts = STATE_DISTRICTS['Punjab'];
-    if (!validDistricts.includes(district)) {
-      return res.status(400).json({
-        error: `"${district}" is not a valid Punjab district. Please select a correct Punjab district.`,
-      });
-    }
-  }
+  if (selectedState === 'Punjab' && district && !STATE_DISTRICTS['Punjab'].includes(district))
+    return res.status(400).json({ error: `"${district}" is not a valid Punjab district.` });
 
-  // Build photos array — use full URL path for serving
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
-  const photos = req.files?.map(f => `/uploads/${f.filename}`) || [];
+  const photos = sanitizePhotos(photosRaw);
 
   const id = 'p_' + Date.now();
   db.prepare(`INSERT INTO properties
-    (id,title,type,listing,state,district,locality,price,area,beds,baths,floors,description,amenities,featured,status,posted_by,agent_name,agent_phone,agent_email,photos)
+    (id,title,type,listing,state,district,locality,price,area,beds,baths,floors,
+     description,amenities,featured,status,posted_by,agent_name,agent_phone,agent_email,photos)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
     .run(
       id, title, type || 'house', listing || 'sale',
       selectedState, district, locality || '',
       parseInt(price), parseInt(area)||0, parseInt(beds)||0, parseInt(baths)||0, parseInt(floors)||0,
-      description || '',
-      amenities || '[]',
-      featured === 'true' ? 1 : 0,
+      description || '', amenities || '[]',
+      featured === true || featured === 'true' ? 1 : 0,
       'active', u.id,
       agent_name || u.name || '',
       agent_phone || u.phone || '',
@@ -316,38 +292,32 @@ router.post('/', authMiddleware, upload.array('photos', 8), (req, res) => {
     );
 
   const prop = parseProperty(db.prepare('SELECT * FROM properties WHERE id=?').get(id));
-  console.log(`[PROP] New listing: ${title} by ${u.email}`);
+  console.log(`[PROP] New listing: ${title} by ${u.email} (${photos.length} photos)`);
   res.status(201).json({ success: true, property: prop });
 });
 
 // ── PUT /api/properties/:id ───────────────────────────────────────────────────
-router.put('/:id', authMiddleware, upload.array('photos', 8), (req, res) => {
+router.put('/:id', authMiddleware, (req, res) => {
   const prop = db.prepare('SELECT * FROM properties WHERE id=?').get(req.params.id);
   if (!prop) return res.status(404).json({ error: 'Property not found' });
-
   const u = req.user;
-  if (u.role !== 'admin' && prop.posted_by !== u.id) {
+  if (u.role !== 'admin' && prop.posted_by !== u.id)
     return res.status(403).json({ error: 'Not authorized to edit this property' });
-  }
 
-  const { title, type, listing, state, district, locality, price, area, beds, baths, floors,
-          description, amenities, featured, agent_name, agent_phone, agent_email } = req.body;
+  const {
+    title, type, listing, state, district, locality, price, area, beds, baths, floors,
+    description, amenities, featured, agent_name, agent_phone, agent_email,
+    photos: photosRaw,
+  } = req.body;
 
   const selectedState = state || prop.state || 'Punjab';
-  if (selectedState === 'Punjab' && district) {
-    const validDistricts = STATE_DISTRICTS['Punjab'];
-    if (!validDistricts.includes(district)) {
-      return res.status(400).json({
-        error: `"${district}" is not a valid Punjab district.`,
-      });
-    }
-  }
+  if (selectedState === 'Punjab' && district && !STATE_DISTRICTS['Punjab'].includes(district))
+    return res.status(400).json({ error: `"${district}" is not a valid Punjab district.` });
 
-  // Handle new photo uploads
   let photos = JSON.parse(prop.photos || '[]');
-  if (req.files?.length) {
-    const newPhotos = req.files.map(f => `/uploads/${f.filename}`);
-    photos = [...photos, ...newPhotos].slice(0, 8);
+  if (photosRaw !== undefined) {
+    const newPhotos = sanitizePhotos(photosRaw);
+    if (newPhotos.length > 0) photos = newPhotos;
   }
 
   db.prepare(`UPDATE properties SET
@@ -357,21 +327,17 @@ router.put('/:id', authMiddleware, upload.array('photos', 8), (req, res) => {
     floors=COALESCE(?,floors), description=COALESCE(?,description),
     amenities=COALESCE(?,amenities), featured=COALESCE(?,featured),
     agent_name=COALESCE(?,agent_name), agent_phone=COALESCE(?,agent_phone),
-    agent_email=COALESCE(?,agent_email), photos=?
-    WHERE id=?`)
+    agent_email=COALESCE(?,agent_email), photos=? WHERE id=?`)
     .run(
       title||null, type||null, listing||null,
       selectedState||null, district||null, locality||null,
-      price ? parseInt(price) : null,
-      area  ? parseInt(area)  : null,
-      beds  ? parseInt(beds)  : null,
-      baths ? parseInt(baths) : null,
+      price ? parseInt(price) : null, area ? parseInt(area) : null,
+      beds ? parseInt(beds) : null, baths ? parseInt(baths) : null,
       floors !== undefined ? parseInt(floors)||0 : null,
       description||null, amenities||null,
-      featured !== undefined ? (featured==='true'?1:0) : null,
+      featured !== undefined ? (featured===true||featured==='true'?1:0) : null,
       agent_name||null, agent_phone||null, agent_email||null,
-      JSON.stringify(photos),
-      req.params.id,
+      JSON.stringify(photos), req.params.id,
     );
 
   res.json({ success: true, property: parseProperty(db.prepare('SELECT * FROM properties WHERE id=?').get(req.params.id)) });
@@ -381,22 +347,8 @@ router.put('/:id', authMiddleware, upload.array('photos', 8), (req, res) => {
 router.delete('/:id', authMiddleware, (req, res) => {
   const prop = db.prepare('SELECT * FROM properties WHERE id=?').get(req.params.id);
   if (!prop) return res.status(404).json({ error: 'Property not found' });
-
-  if (req.user.role !== 'admin' && prop.posted_by !== req.user.id) {
+  if (req.user.role !== 'admin' && prop.posted_by !== req.user.id)
     return res.status(403).json({ error: 'Not authorized to delete this property' });
-  }
-
-  // Delete uploaded files
-  try {
-    const photos = JSON.parse(prop.photos || '[]');
-    photos.forEach(p => {
-      if (p.startsWith('/uploads/')) {
-        const fp = path.join(__dirname, '../../', p);
-        if (fs.existsSync(fp)) fs.unlinkSync(fp);
-      }
-    });
-  } catch (_) {}
-
   db.prepare('DELETE FROM properties WHERE id=?').run(req.params.id);
   res.json({ success: true, message: 'Property deleted' });
 });
@@ -405,16 +357,11 @@ router.delete('/:id', authMiddleware, (req, res) => {
 router.patch('/:id/status', authMiddleware, (req, res) => {
   const prop = db.prepare('SELECT * FROM properties WHERE id=?').get(req.params.id);
   if (!prop) return res.status(404).json({ error: 'Property not found' });
-
-  if (req.user.role !== 'admin' && prop.posted_by !== req.user.id) {
+  if (req.user.role !== 'admin' && prop.posted_by !== req.user.id)
     return res.status(403).json({ error: 'Not authorized' });
-  }
-
   const { status } = req.body;
-  if (!['active','sold','rented','inactive'].includes(status)) {
+  if (!['active','sold','rented','inactive'].includes(status))
     return res.status(400).json({ error: 'Invalid status' });
-  }
-
   db.prepare('UPDATE properties SET status=? WHERE id=?').run(status, req.params.id);
   res.json({ success: true });
 });

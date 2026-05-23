@@ -1,5 +1,8 @@
 // ─── API Utility ─────────────────────────────────────────────────────────────
-const BASE = '/api';
+// VITE_API_URL must be set to your Render backend URL in Vercel env vars
+// e.g. https://your-backend.onrender.com
+// Leave empty for local dev (uses Vite proxy)
+const BASE = (import.meta.env.VITE_API_URL || '') + '/api';
 
 function getToken() { return localStorage.getItem('pe360_token') || ''; }
 
@@ -14,8 +17,24 @@ async function req(method: string, url: string, body?: any, isFormData = false) 
     headers,
     body: isFormData ? body : body ? JSON.stringify(body) : undefined,
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(data.error || `Request failed (${res.status})`), data);
+
+  let data = {};
+  try {
+    const contentType = res.headers.get('content-type');
+    if (contentType?.includes('application/json')) {
+      data = await res.json();
+    }
+  } catch (error) {
+    console.error('Failed to parse JSON response:', error);
+  }
+
+  if (!res.ok) {
+    throw Object.assign(
+      new Error(data?.error || `Request failed (${res.status})`),
+      data
+    );
+  }
+
   return data;
 }
 
@@ -32,11 +51,12 @@ export const api = {
   // Properties
   getProperties:    (params?: Record<string, string>)      => req('GET', '/properties?' + new URLSearchParams(params || {}).toString()),
   getProperty:      (id: string)                           => req('GET', `/properties/${id}`),
-  addProperty:      (fd: FormData)                         => req('POST','/properties', fd, true),
-  updateProperty:   (id: string, fd: FormData)             => req('PUT', `/properties/${id}`, fd, true),
+  addProperty:      (data: any)                 => req('POST','/properties', data),
+  updateProperty:   (id: string, data: any)     => req('PUT', `/properties/${id}`, data),
   deleteProperty:   (id: string)                           => req('DELETE',`/properties/${id}`),
   setStatus:        (id: string, status: string)           => req('PATCH',`/properties/${id}/status`, { status }),
   getTrends:        (params?: Record<string, string>)      => req('GET', '/properties/trends?' + new URLSearchParams(params || {}).toString()),
+  getAvailableDistricts: (params?: Record<string, string>) => req('GET', '/properties/trends/available?' + new URLSearchParams(params || {}).toString()),
   getStatesSummary: ()                                     => req('GET', '/properties/states-summary'),
   getStateBreakdown:(state: string)                        => req('GET', '/properties/state-breakdown?' + new URLSearchParams({ state }).toString()),
   toggleWishlist:   (id: string)                           => req('POST', `/properties/${id}/wishlist`),
@@ -45,9 +65,10 @@ export const api = {
   getTrending:      (params?: Record<string, string>)      => req('GET', '/properties/trending?' + new URLSearchParams(params || {}).toString()),
 
   // Enquiries
-  sendEnquiry:   (property_id: string, message: string, user_phone?: string) =>
+  sendEnquiry:    (property_id: string, message: string, user_phone?: string) =>
     req('POST','/enquiries', { property_id, message, user_phone }),
-  getMyEnquiries:()                                        => req('GET', '/enquiries'),
+  getMyEnquiries: ()                                       => req('GET', '/enquiries'),
+  setEnquiryStatus: (id: string, status: string)           => req('PATCH', `/enquiries/${id}/status`, { status }),
 
   // Admin
   adminStats:      ()                                      => req('GET', '/admin/stats'),
@@ -65,7 +86,7 @@ export const api = {
   updateEnquiry:   (id: string, status: string)            => req('PUT', `/admin/enquiries/${id}`, { status }),
 
   // AI
-  aiChat:          (message: string, history?: any[])      => req('POST','/ai/chat', { message, history }),
+  aiChat:          (message: string, history?: any[], user_id?: string) => req('POST','/ai/chat', { message, history, user_id }),
 };
 
 export function saveUser(token: string, user: any) {

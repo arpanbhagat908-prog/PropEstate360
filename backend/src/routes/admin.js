@@ -16,8 +16,8 @@ router.get('/stats', (req, res) => {
   const enquiries  = db.prepare('SELECT COUNT(*) as c FROM enquiries').get().c;
   const districts  = db.prepare('SELECT COUNT(DISTINCT district) as c FROM properties').get().c;
   const totalValue = db.prepare("SELECT SUM(price) as s FROM properties WHERE listing='sale' AND status='active'").get().s || 0;
-  const recentProp = db.prepare('SELECT COUNT(*) as c FROM properties WHERE created_at >= datetime("now","-30 days")').get().c;
-  const recentUsers= db.prepare('SELECT COUNT(*) as c FROM users WHERE created_at >= datetime("now","-30 days")').get().c;
+  const recentProp = db.prepare('SELECT COUNT(*) as c FROM properties WHERE created_at >= datetime(\'now\',\'-30 days\')').get().c;
+  const recentUsers= db.prepare('SELECT COUNT(*) as c FROM users WHERE created_at >= datetime(\'now\',\'-30 days\')').get().c;
   const pendingAgents = db.prepare("SELECT COUNT(*) as c FROM users WHERE role='agent' AND agent_status='pending'").get().c;
   const approvedAgents = db.prepare("SELECT COUNT(*) as c FROM users WHERE role='agent' AND agent_status='approved'").get().c;
 

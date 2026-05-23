@@ -120,6 +120,17 @@ body{font-family:'Inter',sans-serif;background:var(--slate6);color:var(--dark);l
 .section-title{font-family:'Playfair Display',serif;font-size:clamp(26px,4vw,38px);font-weight:700;color:var(--dark)}
 .section-sub{color:var(--slate2);font-size:16px;margin-top:8px}
 
+
+// ── Resolve photo URL — works for both base64 data URLs and external URLs ──
+function resolvePhoto(src: string | undefined, fallback: string): string {
+  if (!src) return fallback;
+  // base64 data URLs and external http URLs work as-is
+  if (src.startsWith('data:') || src.startsWith('http')) return src;
+  // Legacy /uploads/ paths (dev only) — in production these should not exist
+  // as photos are now stored as base64
+  return src;
+}
+
 /* AI chat bubbles */
 .bubble-user{background:var(--blue);color:#fff;border-radius:18px 18px 4px 18px;padding:12px 18px;max-width:80%;align-self:flex-end;font-size:14px;line-height:1.7}
 .bubble-ai{background:var(--white);color:var(--dark);border-radius:18px 18px 18px 4px;padding:14px 18px;max-width:88%;align-self:flex-start;border:1px solid var(--slate4);font-size:14px;line-height:1.7;box-shadow:var(--shadow-sm)}
@@ -160,6 +171,12 @@ body{font-family:'Inter',sans-serif;background:var(--slate6);color:var(--dark);l
 `;
 
 // ═══════════════════════════════════════════════════════════════════════════
+// FALLBACK IMAGES
+// ═══════════════════════════════════════════════════════════════════════════
+const FALLBACK_PHOTO = 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200&q=95';
+const FALLBACK_PHOTO_ERR = 'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=1200&q=95';
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════════════
 type Page = 'home'|'properties'|'detail'|'login'|'register'|'dashboard'|'admin'|'ai'|'list'|'trends'|'states';
@@ -169,6 +186,9 @@ export default function App() {
   const [pageData, setPageData] = useState<any>(null);
   const [user, setUser]   = useState<User | null>(loadUser);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [aiMessages, setAiMessages] = useState<any[]>([
+    { role:'ai', text:'👋 **Sat Sri Akal!** Welcome to PropEstate360 — Your Complete Real Estate Companion!\n\n🏠 **What I can help you with:**\n\n🔍 **Property Search & Discovery**\n• *"Find 3BHK house in Ludhiana under 80 lakh"*\n• *"Show apartments in Gurgaon, Haryana"*\n• *"Properties for rent in Bangalore"*\n\n💰 **Financial Planning**\n• *"EMI for 60 lakh at 8.5% for 20 years"* (Home loan calculator)\n• *"Price per sqft in Mohali"* (Market rates)\n\n📊 **Market Intelligence**\n• *"Price trend for houses in Amritsar, Punjab"* (Historical data)\n• *"Best areas to invest in Maharashtra"* (Investment advice)\n• *"How many properties are listed?"* (Market statistics)\n\n🗺️ **Explore India**\n• Browse properties across all states and districts\n• Compare prices between cities\n• View interactive trend charts\n\n📱 **Website Features**\n• **Properties Page**: Advanced filters & search\n• **Price Trends**: Historical market data with charts\n• **India Map**: Properties across all states\n• **List Property**: Post your own listings\n• **Dashboard**: Manage your account & listings\n\n💡 **Pro Tips:**\n• Be specific with location (city + state)\n• Include budget, property type, or BHK for better results\n• Ask about trends with "state + district + property type"\n\nWhat would you like to explore today? 🏡' },
+  ]);
 
   const msg = useCallback((m: string, type: 'ok'|'err' = 'ok') => {
     setToast({ msg: m, type });
@@ -189,7 +209,13 @@ export default function App() {
 
   const doLogout = () => { clearUser(); setUser(null); nav('home'); };
 
-  const ctx = { nav, user, setUser, doLogin, doLogout, msg };
+  const resetAiChat = () => {
+    setAiMessages([
+      { role:'ai', text:'👋 **Sat Sri Akal!** Welcome to PropEstate360 — Your Complete Real Estate Companion!\n\n🏠 **What I can help you with:**\n\n🔍 **Property Search & Discovery**\n• *"Find 3BHK house in Ludhiana under 80 lakh"*\n• *"Show apartments in Gurgaon, Haryana"*\n• *"Properties for rent in Bangalore"*\n\n💰 **Financial Planning**\n• *"EMI for 60 lakh at 8.5% for 20 years"* (Home loan calculator)\n• *"Price per sqft in Mohali"* (Market rates)\n\n📊 **Market Intelligence**\n• *"Price trend for houses in Amritsar, Punjab"* (Historical data)\n• *"Best areas to invest in Maharashtra"* (Investment advice)\n• *"How many properties are listed?"* (Market statistics)\n\n🗺️ **Explore India**\n• Browse properties across all states and districts\n• Compare prices between cities\n• View interactive trend charts\n\n📱 **Website Features**\n• **Properties Page**: Advanced filters & search\n• **Price Trends**: Historical market data with charts\n• **India Map**: Properties across all states\n• **List Property**: Post your own listings\n• **Dashboard**: Manage your account & listings\n\n💡 **Pro Tips:**\n• Be specific with location (city + state)\n• Include budget, property type, or BHK for better results\n• Ask about trends with "state + district + property type"\n\nWhat would you like to explore today? 🏡' },
+    ]);
+  };
+
+  const ctx = { nav, user, setUser, doLogin, doLogout, msg, aiMessages, setAiMessages, resetAiChat };
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--slate6)', color: 'var(--dark)' }}>
@@ -253,7 +279,7 @@ function Navbar({ nav, user, doLogout, page }: any) {
           <span className={`nav-link ${page==='properties'?'active':''}`} onClick={() => nav('properties')}>Properties</span>
           <span className={`nav-link ${page==='trends'?'active':''}`} onClick={() => nav('trends')}>📊 Trends</span>
           <span className={`nav-link ${page==='states'?'active':''}`} onClick={() => nav('states')}>🗺️ India</span>
-          <span className={`nav-link ${page==='ai'?'active':''}`} onClick={() => nav('ai')}>🤖 AI</span>
+          <span className={`nav-link ${page==='ai'?'active':''}`} onClick={() => nav('ai')}>🤖 Chatbot</span>
           {user && (user.role === 'agent' || user.role === 'admin') && (
             <span className={`nav-link ${page==='list'?'active':''}`} onClick={() => nav('list')}>+ List Property</span>
           )}
@@ -484,7 +510,7 @@ function Home({ nav, user, msg }: any) {
             {[
               { icon: '🔍', title: 'Smart Search', desc: 'Filter by district, type, price, BHK — find exactly what you want.' },
               { icon: '📊', title: 'Price Trends', desc: 'Real market data showing price appreciation in every district.' },
-              { icon: '🤖', title: 'AI Assistant', desc: 'Get instant answers, EMI calculations, and investment advice.' },
+              { icon: '🤖', title: 'Chatbot Assistant', desc: 'Get instant answers, EMI calculations, and investment advice.' },
               { icon: '🔒', title: 'Verified Listings', desc: 'Every property verified with agent contacts and details.' },
               { icon: '📱', title: 'Real OTP Verification', desc: 'Secure email OTP during registration — no fake accounts.' },
               { icon: '⚡', title: 'Instant Enquiry', desc: 'Contact agents directly — phone, email, WhatsApp.' },
@@ -528,10 +554,21 @@ function Home({ nav, user, msg }: any) {
 // ═══════════════════════════════════════════════════════════════════════════
 // PROPERTY CARD
 // ═══════════════════════════════════════════════════════════════════════════
+const resolvePhoto = (photo) => {
+  if (!photo) return "/placeholder.jpg";
+
+  // If already full URL or base64 data URL
+  if (typeof photo === "string" && (photo.startsWith("http") || photo.startsWith("data:"))) {
+    return photo;
+  }
+
+  // If backend file (adjust port if needed)
+  return `http://localhost:5000/uploads/${photo}`;
+};
 
 function PropertyCard({ prop: p, nav }: { prop: Property; nav: any }) {
   const [wishlisted, setWishlisted] = useState(false);
-  const rawImg = p.photos?.[0] || `https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200&q=95`;
+  const rawImg = resolvePhoto(p.photos?.[0], FALLBACK_PHOTO);
   const img = rawImg.startsWith('/uploads/') ? `http://localhost:3001${rawImg}` : rawImg;
   const listingColor = p.listing === 'rent' ? 'var(--teal)' : 'var(--blue)';
 
@@ -814,8 +851,8 @@ function PropertyDetail({ nav, user, msg, id }: any) {
     </div>
   );
 
-  const imgs = prop.photos?.length ? prop.photos.map((p: string) => p.startsWith('/uploads/') ? `http://localhost:3001${p}` : p) : [
-    'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1600&q=95',
+  const imgs = prop.photos?.length ? prop.photos.map((p: string) => resolvePhoto(p, FALLBACK_PHOTO)) : [
+    FALLBACK_PHOTO,
   ];
 
   const handleEnquiry = async () => {
@@ -862,7 +899,7 @@ function PropertyDetail({ nav, user, msg, id }: any) {
                 <img
                   src={imgs[imgIdx]} alt={prop.title}
                   style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'auto' }}
-                  onError={e => { e.currentTarget.src = 'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=1600&q=95'; }}
+                  onError={e => { e.currentTarget.src = FALLBACK_PHOTO_ERR; }}
                 />
                 <div style={{ position: 'absolute', top: 16, left: 16, display: 'flex', gap: 8 }}>
                   <div style={{ background: listingColor, color: '#fff', padding: '5px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700 }}>
@@ -1376,7 +1413,6 @@ function LoginPage({ nav, setUser, doLogin, msg }: any) {
                 Register here
               </span>
             </p>
-
           </div>
         </div>
       </div>
@@ -1757,7 +1793,7 @@ function Dashboard({ nav, user, setUser, doLogout, msg }: any) {
                   </div>
                 ) : myProps.map(p => (
                   <div key={p.id} className="card-flat" style={{ display: 'flex', gap: 16, padding: 16, marginBottom: 12, alignItems: 'center' }}>
-                    <img src={p.photos?.[0] || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&q=90'} alt=""
+                    <img src={resolvePhoto(p.photos?.[0], FALLBACK_PHOTO)} alt=""
                       style={{ width: 90, height: 68, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }}
                       onError={e => { e.currentTarget.style.display='none'; }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -1847,8 +1883,30 @@ function Dashboard({ nav, user, setUser, doLogout, msg }: any) {
                   <div key={e.id} className="card-flat" style={{ padding: 16, marginBottom: 12 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
                       <div style={{ fontWeight: 600, color: 'var(--blue)' }}>{e.property_title}</div>
-                      <span className={`badge ${e.status==='open'?'badge-green':'badge-slate'}`}>{e.status}</span>
+                      {isBuyer ? (
+                        <span className={`badge ${e.status==='open'?'badge-green':'badge-slate'}`}>{e.status}</span>
+                      ) : (
+                        <select
+                          value={e.status || 'open'}
+                          style={{ fontSize: 12, padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', cursor: 'pointer' }}
+                          onChange={async ev => {
+                            try {
+                              await api.setEnquiryStatus(e.id, ev.target.value);
+                              setMyEnqs(prev => prev.map((x: any) => x.id === e.id ? { ...x, status: ev.target.value } : x));
+                            } catch(err: any) { msg(err.message || 'Failed to update', 'err'); }
+                          }}
+                        >
+                          <option value="open">🟢 Open</option>
+                          <option value="replied">💬 Replied</option>
+                          <option value="closed">🔒 Closed</option>
+                        </select>
+                      )}
                     </div>
+                    {!isBuyer && e.user_name && (
+                      <div style={{ fontSize: 12, color: 'var(--teal)', marginBottom: 6 }}>
+                        👤 From: <strong>{e.user_name}</strong> · {e.user_email} · {e.user_phone}
+                      </div>
+                    )}
                     <p style={{ color: 'var(--slate)', fontSize: 13, lineHeight: 1.6 }}>{e.message}</p>
                     <div style={{ fontSize: 12, color: 'var(--slate2)', marginTop: 8 }}>{timeAgo(e.created_at)}</div>
                   </div>
@@ -2001,15 +2059,39 @@ function ListProperty({ nav, user, msg, editId }: any) {
     }
     setLoading(true);
     try {
-      const fd = new FormData();
-      Object.entries(form).forEach(([k, v]) => {
-        if (k === 'amenities') fd.append(k, JSON.stringify(v));
-        else fd.append(k, String(v));
+      // Convert photos to base64 for deployment-safe storage (no server filesystem needed)
+      const toBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d')!;
+        const img = new Image();
+        img.onload = () => {
+          // Cap max dimension at 1200px to keep size reasonable
+          const MAX = 1200;
+          const ratio = Math.min(MAX / img.width, MAX / img.height, 1);
+          canvas.width = Math.round(img.width * ratio);
+          canvas.height = Math.round(img.height * ratio);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob(blob => {
+            if (!blob) return reject(new Error('Conversion failed'));
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          }, 'image/jpeg', 0.82);
+        };
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
       });
-      photos.forEach(p => fd.append('photos', p));
+      const base64Photos = await Promise.all(photos.map(toBase64));
 
-      if (editId) await api.updateProperty(editId, fd);
-      else await api.addProperty(fd);
+      const data = {
+        ...form,
+        amenities: JSON.stringify(form.amenities),
+        photos: base64Photos,
+      };
+
+      if (editId) await api.updateProperty(editId, data);
+      else await api.addProperty(data);
 
       msg(editId ? 'Property updated ✓' : 'Property listed successfully! ✓');
       nav('dashboard');
@@ -2140,7 +2222,7 @@ function ListProperty({ nav, user, msg, editId }: any) {
                 <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginTop:8 }}>
                   {existingPhotos.map((src, i) => (
                     <div key={i} style={{ position:'relative' }}>
-                      <img src={src.startsWith('/uploads/') ? `http://localhost:3001${src}` : src}
+                      <img src={resolvePhoto(src, FALLBACK_PHOTO)}
                         alt="" style={{ width:90, height:70, objectFit:'cover', borderRadius:8, border:'2px solid var(--blue4)' }} />
                     </div>
                   ))}
@@ -2684,7 +2766,7 @@ function AdminPanel({ nav, user, msg }: any) {
                       <div key={p.id} style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10, paddingBottom:10, borderBottom:'1px solid var(--slate5)' }}>
                         {p.photos?.[0] ? (
                           <img
-                            src={p.photos[0].startsWith('/uploads/') ? `http://localhost:3001${p.photos[0]}` : p.photos[0]}
+                            src={resolvePhoto(p.photos[0], FALLBACK_PHOTO)}
                             alt=""
                             style={{ width:44, height:36, objectFit:'cover', borderRadius:6, flexShrink:0 }}
                           />
@@ -2952,6 +3034,7 @@ function AdminPanel({ nav, user, msg }: any) {
                         <select className="sel" style={{ padding:'4px 8px', fontSize:12 }} value={e.status}
                           onChange={async ev => {
                             await api.updateEnquiry(e.id, ev.target.value);
+                              setEnqs((prev: any[]) => prev.map((x: any) => x.id === e.id ? { ...x, status: ev.target.value } : x));
                             setEnqs(enqs.map(x => x.id===e.id ? {...x, status: ev.target.value} : x));
                           }}>
                           <option value="open">Open</option>
@@ -3037,8 +3120,40 @@ function PriceTrends({ nav }: any) {
   const [type, setType]         = useState('house');
   const [loading, setLoading]   = useState(false);
   const [realPpsf, setRealPpsf] = useState<number|null>(null);
+  const [availableDistricts, setAvailableDistricts] = useState<Record<string, string[]>>({});
+  const [availableStates, setAvailableStates] = useState<string[]>([]);
+  const [loadingDistricts, setLoadingDistricts] = useState(false);
 
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  // Fetch available districts with price history data
+  const fetchAvailableDistricts = async () => {
+    setLoadingDistricts(true);
+    try {
+      const d = await api.getAvailableDistricts({ type });
+      setAvailableDistricts(d.stateDistricts);
+      setAvailableStates(d.states);
+      
+      // If current state is not in available states, switch to first available
+      if (!d.states.includes(state)) {
+        const firstState = d.states[0] || 'Punjab';
+        setState(firstState);
+        const firstDistrict = d.stateDistricts[firstState]?.[0] || '';
+        setDistrict(firstDistrict);
+      } else if (!d.stateDistricts[state]?.includes(district)) {
+        // If current district is not available, switch to first available in current state
+        const firstDistrict = d.stateDistricts[state]?.[0] || '';
+        setDistrict(firstDistrict);
+      }
+    } catch {
+      setAvailableDistricts({});
+      setAvailableStates([]);
+    }
+    setLoadingDistricts(false);
+  };
+
+  // Fetch available districts when type changes
+  useEffect(() => { fetchAvailableDistricts(); }, [type]);
 
   const fetchTrends = async () => {
     setLoading(true);
@@ -3076,17 +3191,30 @@ function PriceTrends({ nav }: any) {
         {/* Filters — State + District + Type */}
         <div className="card-flat" style={{ padding:20, marginBottom:28, display:'flex', gap:16, flexWrap:'wrap', alignItems:'flex-end' }}>
           <div>
-            <label className="lbl">State</label>
-            <select className="sel" value={state} onChange={e => { setState(e.target.value); setDistrict(''); }}>
-              {INDIA_STATES.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+            <label className="lbl">State {loadingDistricts && <span style={{ fontSize:11, color:'var(--slate2)' }}>📍 Loading...</span>}</label>
+            <select className="sel" value={state} onChange={e => {
+              const nextState = e.target.value;
+              setState(nextState);
+              const nextDistricts = availableDistricts[nextState];
+              setDistrict(nextDistricts?.[0] || '');
+            }} disabled={loadingDistricts}>
+              {(availableStates.length > 0 ? availableStates : INDIA_STATES.map(s => s.name)).map(s => 
+                <option key={s} value={s}>{s}</option>
+              )}
             </select>
+            {availableStates.length > 0 && (
+              <p style={{ fontSize:11, color:'var(--slate2)', marginTop:4 }}>✓ {availableStates.length} states with data</p>
+            )}
           </div>
           <div>
             <label className="lbl">District</label>
-            {state === 'Punjab' ? (
-              <select className="sel" value={district} onChange={e => setDistrict(e.target.value)}>
-                {PUNJAB_DISTRICTS.map(d => <option key={d.name} value={d.name}>{d.name}</option>)}
-              </select>
+            {availableDistricts[state] && availableDistricts[state].length > 0 ? (
+              <>
+                <select className="sel" value={district} onChange={e => setDistrict(e.target.value)}>
+                  {availableDistricts[state].map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+                <p style={{ fontSize:11, color:'var(--slate2)', marginTop:4 }}>✓ {availableDistricts[state].length} districts with data</p>
+              </>
             ) : (
               <input className="inp" value={district} onChange={e => setDistrict(e.target.value)}
                 placeholder="Enter district name" style={{ width:160 }} />
@@ -3099,7 +3227,7 @@ function PriceTrends({ nav }: any) {
                 <option key={t.value} value={t.value}>{t.emoji} {t.label}</option>)}
             </select>
           </div>
-          <button className="btn btn-blue2 btn-sm" onClick={fetchTrends}>🔄 Refresh</button>
+          <button className="btn btn-blue2 btn-sm" onClick={fetchTrends} disabled={loadingDistricts}>🔄 Refresh</button>
         </div>
 
         {/* Summary cards — 5 cards including real price/sqft */}
@@ -3154,42 +3282,57 @@ function PriceTrends({ nav }: any) {
         {/* Compare districts */}
         <div className="card-flat" style={{ padding:24 }}>
           <h3 style={{ fontWeight:700, color:'var(--blue)', marginBottom:16 }}>
-            Compare Districts — Current Avg Prices ({state})
+            Compare Districts — Top 5 Districts ({state})
           </h3>
           <p style={{ fontSize:12, color:'var(--slate2)', marginBottom:16 }}>
-            ⚠️ Comparison uses price history data for Punjab. Price/sqft = Total Price ÷ Area (sqft)
+            ⚠️ Comparison uses the latest available district price history for the selected state.
           </p>
-          <CompareChart type={type} state={state} />
+          <CompareChart type={type} state={state} availableDistricts={availableDistricts} />
         </div>
       </div>
     </div>
   );
 }
 
-function CompareChart({ type, state }: { type: string; state: string }) {
+function CompareChart({ type, state, availableDistricts }: { type: string; state: string; availableDistricts: Record<string, string[]> }) {
   const [data, setData] = useState<any[]>([]);
-  const mainDistricts = ['Ludhiana','Amritsar','Jalandhar','Mohali (SAS Nagar)','Patiala','Bathinda'];
+  const northernStateDistricts: Record<string, string[]> = {
+    Punjab: ['Ludhiana','Amritsar','Jalandhar','Mohali (SAS Nagar)','Patiala'],
+    Haryana: ['Gurugram','Faridabad','Panchkula','Karnal','Ambala'],
+    Delhi: ['Central Delhi','South Delhi','West Delhi','North Delhi','East Delhi'],
+    Rajasthan: ['Jaipur','Jodhpur','Udaipur','Kota','Bikaner'],
+    'Himachal Pradesh': ['Shimla','Dharamshala','Solan','Mandi','Palampur'],
+  };
 
   useEffect(() => {
-    if (state && state !== 'Punjab') {
-      // For non-Punjab states, show real property price/sqft from DB
-      api.getTrends({ state, type }).then(r => {
-        setData(r.real_avg_price_per_sqft
-          ? [{ district: state, price: r.real_avg_price_per_sqft }]
-          : []);
-      }).catch(() => setData([]));
-    } else {
-      // Punjab: compare all main districts using price history
-      Promise.all(mainDistricts.map(d =>
-        api.getTrends({ district: d, type }).then(r => {
-          const rows = r.trends;
-          const last = rows[rows.length-1];
-          // Price per sqft from history (avg_price is already ₹/sqft in price_history)
-          return { district: d.replace(' (SAS Nagar)','').replace('Mohali','Mohali'), price: last?.avg_price || 0 };
-        })
-      )).then(setData).catch(() => {});
+    const pickDistricts = () => {
+      if (northernStateDistricts[state]) {
+        return northernStateDistricts[state].filter(d => availableDistricts[state]?.includes(d));
+      }
+      if (availableDistricts[state] && availableDistricts[state].length > 0) {
+        return availableDistricts[state].slice(0, 5);
+      }
+      return northernStateDistricts['Punjab'];
+    };
+
+    const districts = pickDistricts();
+    if (districts.length === 0) {
+      setData([]);
+      return;
     }
-  }, [type, state]);
+
+    Promise.all(districts.map(d =>
+      api.getTrends({ state, district: d, type }).then(r => {
+        const rows = r.trends;
+        const last = rows[rows.length - 1];
+        return { district: d.replace(' (SAS Nagar)', ''), price: last?.avg_price || 0 };
+      })
+    ))
+      .then(setData)
+      .catch(() => setData([]));
+  }, [type, state, availableDistricts]);
+
+  const colors = ['#1e3a8a','#2563eb','#3b82f6','#1d4ed8','#0f766e'];
 
   return (
     <ResponsiveContainer width="100%" height={260}>
@@ -3199,7 +3342,7 @@ function CompareChart({ type, state }: { type: string; state: string }) {
         <YAxis tick={{ fontSize:11 }} tickFormatter={v => `₹${(v/1000).toFixed(0)}K`} />
         <Tooltip formatter={(v: any) => [`₹${v.toLocaleString('en-IN')}/sqft`, 'Avg Price']} contentStyle={{ borderRadius:10 }} />
         <Bar dataKey="price" fill="var(--blue)" radius={[6,6,0,0]}>
-          {data.map((_: any, i: number) => <Cell key={i} fill={['#1e3a8a','#2563eb','#3b82f6','#1d4ed8','#1e40af','#0f766e'][i]} />)}
+          {data.map((_: any, i: number) => <Cell key={i} fill={colors[i % colors.length]} />)}
         </Bar>
       </BarChart>
     </ResponsiveContainer>
@@ -3210,29 +3353,33 @@ function CompareChart({ type, state }: { type: string; state: string }) {
 // AI ASSISTANT PAGE
 // ═══════════════════════════════════════════════════════════════════════════
 
-function AIAssistant({ nav, user, msg }: any) {
-  const [messages, setMessages] = useState([
-    { role:'ai', text:'👋 **Sat Sri Akal!** I\'m your PropEstate360 AI Assistant.\n\nI can help you:\n• 🔍 **Find properties** — *"Find 3BHK in Ludhiana under 80 lakh"*\n• 💰 **Calculate EMI** — *"EMI for 60 lakh at 8.5% for 20 years"*\n• 📈 **Price trends** — *"Trend for houses in Ludhiana, Punjab"* *(specify state + district + type)*\n• 💡 **Price per sqft** — *"Price per sqft in Mohali"*\n• 🏙️ **Investment advice** — *"Best areas to invest in Punjab"*\n• 📊 **Market statistics** — *"How many properties are listed?"*\n\nWhat are you looking for today?' },
-  ]);
+function AIAssistant({ nav, user, aiMessages, setAiMessages, resetAiChat }: any) {
   const [input, setInput]   = useState('');
   const [loading, setLoading] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior:'smooth' });
-  }, [messages]);
+    setTimeout(() => {
+      if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      }
+    }, 0);
+  }, [aiMessages]);
 
   const send = async () => {
     if (!input.trim() || loading) return;
     const userMsg = input.trim();
+    const nextMessages = [...aiMessages, { role:'user', text: userMsg }];
     setInput('');
-    setMessages(m => [...m, { role:'user', text: userMsg }]);
+    setAiMessages(nextMessages);
     setLoading(true);
+    inputRef.current?.focus();
     try {
-      const d = await api.aiChat(userMsg, messages.slice(-8));
-      setMessages(m => [...m, { role:'ai', text: d.reply }]);
+      const d = await api.aiChat(userMsg, nextMessages.slice(-8), user?.id);
+      setAiMessages(m => [...m, { role:'ai', text: d.reply }]);
     } catch {
-      setMessages(m => [...m, { role:'ai', text:'⚠️ I encountered an error. Please try again!' }]);
+      setAiMessages(m => [...m, { role:'ai', text:'⚠️ I encountered an error. Please try again!' }]);
     }
     setLoading(false);
   };
@@ -3264,22 +3411,30 @@ function AIAssistant({ nav, user, msg }: any) {
   return (
     <div style={{ padding:'32px 0 64px' }}>
       <div className="container" style={{ maxWidth:760 }}>
-        <div style={{ textAlign:'center', marginBottom:28 }}>
+        <div style={{ textAlign:'center', marginBottom:28, position:'relative' }}>
           <div style={{ fontSize:48, marginBottom:8 }}>🤖</div>
-          <h1 className="serif" style={{ fontSize:28, color:'var(--blue)', marginBottom:4 }}>AI Real Estate Assistant</h1>
+          <h1 className="serif" style={{ fontSize:28, color:'var(--blue)', marginBottom:4 }}>Chatbot Real Estate Assistant</h1>
           <p style={{ color:'var(--slate2)', fontSize:14 }}>
             Powered by PropEstate360's intelligent database engine · No external API needed
           </p>
+          <button 
+            className="btn btn-sm" 
+            onClick={resetAiChat}
+            style={{ position:'absolute', top:0, right:0, fontSize:12, padding:'6px 12px' }}
+            title="Clear conversation history"
+          >
+            🔄 Refresh
+          </button>
         </div>
 
         {/* Chat window */}
         <div className="card-flat" style={{ marginBottom:16, overflow:'hidden' }}>
-          <div style={{
+          <div ref={chatContainerRef} style={{
             height:480, overflowY:'auto', padding:20,
             display:'flex', flexDirection:'column', gap:16,
             background:'var(--blue5)',
           }}>
-            {messages.map((m, i) => (
+            {aiMessages.map((m, i) => (
               <div key={i} style={{ display:'flex', justifyContent: m.role==='user'?'flex-end':'flex-start' }}>
                 {m.role === 'ai' && (
                   <div style={{
@@ -3304,20 +3459,25 @@ function AIAssistant({ nav, user, msg }: any) {
                 </div>
               </div>
             )}
-            <div ref={bottomRef} />
           </div>
 
           {/* Input */}
           <div style={{ padding:16, borderTop:'1px solid var(--slate4)', display:'flex', gap:10, background:'#fff' }}>
             <input
+              ref={inputRef}
               className="inp"
               placeholder="Ask about properties, EMI, price trends..."
               value={input}
               onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
               disabled={loading}
             />
-            <button className="btn btn-blue2" onClick={send} disabled={loading || !input.trim()}>
+            <button type="button" className="btn btn-blue2" onClick={(e) => { e.preventDefault(); send(); }} disabled={loading || !input.trim()}>
               Send
             </button>
           </div>
@@ -3539,7 +3699,7 @@ function IndiaStatesPage({ nav }: any) {
                                     position:'relative', overflow:'hidden',
                                   }}>
                                     {p.photos?.[0] ? (
-                                      <img src={p.photos[0]} alt={p.title}
+                                      <img src={resolvePhoto(p.photos[0], FALLBACK_PHOTO)} alt={p.title}
                                         style={{ width:'100%', height:'100%', objectFit:'cover' }} />
                                     ) : (
                                       <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', fontSize:40 }}>
@@ -3629,7 +3789,7 @@ function IndiaStatesPage({ nav }: any) {
                                     position:'relative', overflow:'hidden',
                                   }}>
                                     {p.photos?.[0] ? (
-                                      <img src={p.photos[0]} alt={p.title}
+                                      <img src={resolvePhoto(p.photos[0], FALLBACK_PHOTO)} alt={p.title}
                                         style={{ width:'100%', height:'100%', objectFit:'cover' }} />
                                     ) : (
                                       <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', fontSize:40 }}>

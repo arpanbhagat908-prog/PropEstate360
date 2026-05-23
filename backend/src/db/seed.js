@@ -6,7 +6,7 @@ const db = require('./database');
 const ADMIN_NAME     = process.env.ADMIN_NAME     || 'Arpan';
 const ADMIN_EMAIL    = process.env.ADMIN_EMAIL    || 'arpan@propestate360.com';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Admin@Secure123';
-const ADMIN_PHONE    = process.env.ADMIN_PHONE    || '8968840813';
+const ADMIN_PHONE    = process.env.ADMIN_PHONE    || '9900112233';
 
 const IMGS = [
   'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&q=80',
@@ -187,31 +187,129 @@ async function seed() {
   }
 
   // ── Price History ────────────────────────────────────────────────────────
-  const histCount = db.prepare('SELECT COUNT(*) as c FROM price_history').get().c;
-  if (histCount === 0) {
-    const districts = ['Ludhiana','Amritsar','Jalandhar','Mohali (SAS Nagar)','Patiala','Bathinda'];
-    const types = ['house','villa','apartment','plot'];
-    const basePrices = { 'Ludhiana':4200,'Amritsar':3800,'Jalandhar':3500,'Mohali (SAS Nagar)':5200,'Patiala':3200,'Bathinda':2800 };
-    const typeMultiplier = { house:1, villa:2.2, apartment:0.85, plot:0.55 };
+  const types = ['house','villa','apartment','plot'];
+  const typeMultiplier = { house:1, villa:2.2, apartment:0.85, plot:0.55 };
+  const years = [2024, 2025];
 
-    const ins2 = db.prepare(`INSERT INTO price_history (state,district,property_type,listing_type,avg_price,month,year)
-                              VALUES (?,?,?,?,?,?,?)`);
-    const tx2 = db.transaction(() => {
-      for (const d of districts) {
-        for (const t of types) {
-          const basePrice = basePrices[d] * typeMultiplier[t];
-          for (let m = 1; m <= 12; m++) {
-            const trend = 1 + (m - 1) * 0.008;
-            const seasonal = 1 + Math.sin((m / 12) * Math.PI * 2) * 0.03;
-            const noise = 0.97 + Math.random() * 0.06;
-            const price = Math.round(basePrice * trend * seasonal * noise);
-            ins2.run('Punjab', d, t, 'sale', price, m, 2024);
+  const priceHistoryConfig = {
+    'Punjab': {
+      districts: ['Ludhiana','Amritsar','Jalandhar','Mohali (SAS Nagar)','Patiala','Bathinda','Barnala','Faridkot','Fatehgarh Sahib','Fazilka','Ferozepur','Gurdaspur','Hoshiarpur','Kapurthala','Malerkotla','Mansa','Moga','Muktsar (Sri Muktsar Sahib)','Pathankot','Rupnagar (Ropar)','Sangrur','Shaheed Bhagat Singh Nagar','Tarn Taran'],
+      basePrices: { 'Ludhiana':4200,'Amritsar':3800,'Jalandhar':3500,'Mohali (SAS Nagar)':5200,'Patiala':3200,'Bathinda':2800,'Barnala':2600,'Faridkot':2700,'Fatehgarh Sahib':3000,'Fazilka':2500,'Ferozepur':2600,'Gurdaspur':2800,'Hoshiarpur':3100,'Kapurthala':3200,'Malerkotla':2900,'Mansa':2500,'Moga':2800,'Muktsar (Sri Muktsar Sahib)':2600,'Pathankot':3000,'Rupnagar (Ropar)':3300,'Sangrur':2700,'Shaheed Bhagat Singh Nagar':3200,'Tarn Taran':2700 },
+    },
+    'Haryana': {
+      districts: ['Gurugram','Faridabad','Panipat','Kurukshetra','Ambala','Panchkula'],
+      basePrices: { 'Gurugram':5400,'Faridabad':3600,'Panipat':3300,'Kurukshetra':3000,'Ambala':3100,'Panchkula':4400 },
+    },
+    'Maharashtra': {
+      districts: ['Mumbai City','Pune','Thane','Nagpur','Nashik'],
+      basePrices: { 'Mumbai City':9500,'Pune':6200,'Thane':5200,'Nagpur':3400,'Nashik':3300 },
+    },
+    'Karnataka': {
+      districts: ['Bangalore Urban','Mysore','Mangalore','Hubli','Belagavi'],
+      basePrices: { 'Bangalore Urban':7000,'Mysore':3800,'Mangalore':3600,'Hubli':3100,'Belagavi':3000 },
+    },
+    'Delhi': {
+      districts: ['Central Delhi','South Delhi','West Delhi','North Delhi','East Delhi'],
+      basePrices: { 'Central Delhi':9800,'South Delhi':9200,'West Delhi':7600,'North Delhi':6800,'East Delhi':6500 },
+    },
+    'Tamil Nadu': {
+      districts: ['Chennai','Coimbatore','Madurai','Tiruchirappalli','Salem'],
+      basePrices: { 'Chennai':6400,'Coimbatore':4300,'Madurai':3300,'Tiruchirappalli':3200,'Salem':3100 },
+    },
+    'West Bengal': {
+      districts: ['Kolkata','Howrah','Hooghly','North 24 Parganas','South 24 Parganas'],
+      basePrices: { 'Kolkata':6200,'Howrah':3700,'Hooghly':3100,'North 24 Parganas':3000,'South 24 Parganas':2900 },
+    },
+    'Kerala': {
+      districts: ['Thiruvananthapuram','Ernakulam','Thrissur','Kozhikode','Kollam'],
+      basePrices: { 'Thiruvananthapuram':5200,'Ernakulam':4400,'Thrissur':3300,'Kozhikode':3200,'Kollam':3000 },
+    },
+    'Uttar Pradesh': {
+      districts: ['Lucknow','Kanpur Nagar','Noida','Ghaziabad','Meerut'],
+      basePrices: { 'Lucknow':3200,'Kanpur Nagar':3100,'Noida':4800,'Ghaziabad':4200,'Meerut':3000 },
+    },
+    'Gujarat': {
+      districts: ['Ahmedabad','Surat','Vadodara','Rajkot','Bhavnagar'],
+      basePrices: { 'Ahmedabad':4300,'Surat':4100,'Vadodara':3900,'Rajkot':3400,'Bhavnagar':3200 },
+    },
+    'Himachal Pradesh': {
+      districts: ['Shimla','Manali','Kangra','Solan','Mandi'],
+      basePrices: { 'Shimla':3800,'Manali':3500,'Kangra':2800,'Solan':3000,'Mandi':2700 },
+    },
+    'Jammu & Kashmir': {
+      districts: ['Srinagar','Jammu','Anantnag','Baramulla','Samba'],
+      basePrices: { 'Srinagar':4200,'Jammu':3600,'Anantnag':3200,'Baramulla':3000,'Samba':2900 },
+    },
+    'Rajasthan': {
+      districts: ['Jaipur','Jodhpur','Udaipur','Ajmer','Bikaner'],
+      basePrices: { 'Jaipur':4000,'Jodhpur':3300,'Udaipur':3500,'Ajmer':3000,'Bikaner':2800 },
+    },
+    'Bihar': {
+      districts: ['Patna','Gaya','Bhagalpur','Muzaffarpur','Darbhanga'],
+      basePrices: { 'Patna':2800,'Gaya':2300,'Bhagalpur':2200,'Muzaffarpur':2100,'Darbhanga':2000 },
+    },
+    'Uttrakhand': {
+      districts: ['Dehradun','Haridwar','Almora','Nainital','Udham Singh Nagar'],
+      basePrices: { 'Dehradun':3600,'Haridwar':3200,'Almora':2600,'Nainital':3100,'Udham Singh Nagar':2900 },
+    },
+  };
+
+  const existingHistory = db.prepare(
+    `SELECT state,district,property_type,listing_type,year,month FROM price_history`
+  ).all().reduce((map, row) => {
+    map.add(`${row.state}|${row.district}|${row.property_type}|${row.listing_type}|${row.year}|${row.month}`);
+    return map;
+  }, new Set());
+
+  const ins2 = db.prepare(`INSERT INTO price_history (state,district,property_type,listing_type,avg_price,month,year)
+                            VALUES (?,?,?,?,?,?,?)`);
+  let inserted = 0;
+
+  const tx2 = db.transaction(() => {
+    for (const [state, config] of Object.entries(priceHistoryConfig)) {
+      for (const district of config.districts) {
+        for (const propertyType of types) {
+          const basePrice = (config.basePrices[district] || 2800) * typeMultiplier[propertyType];
+          for (const year of years) {
+            for (let month = 1; month <= 12; month++) {
+              // ── SALE history ────────────────────────────────────────────────
+              const keySale = `${state}|${district}|${propertyType}|sale|${year}|${month}`;
+              if (!existingHistory.has(keySale)) {
+                const yearTrend = 1 + (year - 2024) * 0.06;
+                const monthTrend = 1 + (month - 1) * 0.008;
+                const seasonal = 1 + Math.sin((month / 12) * Math.PI * 2) * 0.03;
+                const noise = 0.95 + Math.random() * 0.1;
+                const price = Math.round(basePrice * yearTrend * monthTrend * seasonal * noise);
+
+                ins2.run(state, district, propertyType, 'sale', price, month, year);
+                inserted += 1;
+              }
+
+              // ── RENT history (monthly rent is ~0.5-0.8% of purchase price) ─
+              const keyRent = `${state}|${district}|${propertyType}|rent|${year}|${month}`;
+              if (!existingHistory.has(keyRent)) {
+                const rentMultiplier = propertyType === 'plot' ? 0.002 : 0.006;
+                const yearTrend = 1 + (year - 2024) * 0.05;
+                const monthTrend = 1 + (month - 1) * 0.005;
+                const seasonal = 1 + Math.sin((month / 12) * Math.PI * 2) * 0.02;
+                const noise = 0.92 + Math.random() * 0.16;
+                const rentPrice = Math.round(basePrice * rentMultiplier * yearTrend * monthTrend * seasonal * noise);
+
+                ins2.run(state, district, propertyType, 'rent', rentPrice, month, year);
+                inserted += 1;
+              }
+            }
           }
         }
       }
-    });
-    tx2();
-    console.log('✅ Price history seeded');
+    }
+  });
+
+  tx2();
+  if (inserted > 0) {
+    console.log(`✅ Price history inserted/updated: ${inserted} rows for 2024-2025 across multiple states`);
+  } else {
+    console.log('✅ Price history already up-to-date for 2024-2025');
   }
 
   console.log('🎉 Database ready!');
