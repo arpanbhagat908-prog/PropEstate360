@@ -1,9 +1,8 @@
 // ─── API Utility ─────────────────────────────────────────────────────────────
-// VITE_API_URL must be set to your Render backend URL in Vercel env vars
-// e.g. https://your-backend.onrender.com
-
-// Leave empty for local dev (uses Vite proxy)
-const BASE = (import.meta.env.VITE_API_URL || 'https://propestate360.onrender.com') + '/api';
+// Set VITE_API_URL in the live frontend environment when the API is on a
+// different domain. Leave it empty for local dev so Vite proxies /api.
+export const API_ORIGIN = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+const BASE = `${API_ORIGIN}/api`;
 
 function getToken() { return localStorage.getItem('pe360_token') || ''; }
 

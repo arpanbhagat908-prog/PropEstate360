@@ -3,7 +3,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend,
 } from 'recharts';
-import { api, saveUser, loadUser, clearUser, fmtPrice, timeAgo, calcEMI } from './api';
+import { api, saveUser, loadUser, clearUser, fmtPrice, timeAgo, calcEMI, API_ORIGIN } from './api';
 import { INDIA_STATES, PUNJAB_DISTRICTS, PROPERTY_TYPES, AMENITIES_LIST, TYPE_EMOJI, STATE_DISTRICTS } from './constants';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -554,22 +554,20 @@ function Home({ nav, user, msg }: any) {
 // ═══════════════════════════════════════════════════════════════════════════
 // PROPERTY CARD
 // ═══════════════════════════════════════════════════════════════════════════
-const resolvePhoto = (photo) => {
-  if (!photo) return "/placeholder.jpg";
+const resolvePhoto = (photo: string | undefined, fallback = FALLBACK_PHOTO): string => {
+  if (!photo) return fallback;
+  if (photo.startsWith('data:') || /^https?:\/\//.test(photo)) return photo;
 
-  // If already full URL or base64 data URL
-  if (typeof photo === "string" && (photo.startsWith("http") || photo.startsWith("data:"))) {
-    return photo;
-  }
+  const uploadPath = photo.startsWith('/')
+    ? photo
+    : `/uploads/${photo.replace(/^uploads\//, '')}`;
 
-  // If backend file (adjust port if needed)
-  return `http://localhost:5000/uploads/${photo}`;
+  return `${API_ORIGIN}${uploadPath}`;
 };
 
 function PropertyCard({ prop: p, nav }: { prop: Property; nav: any }) {
   const [wishlisted, setWishlisted] = useState(false);
-  const rawImg = resolvePhoto(p.photos?.[0], FALLBACK_PHOTO);
-  const img = rawImg.startsWith('/uploads/') ? `http://localhost:3001${rawImg}` : rawImg;
+  const img = resolvePhoto(p.photos?.[0], FALLBACK_PHOTO);
   const listingColor = p.listing === 'rent' ? 'var(--teal)' : 'var(--blue)';
 
   const handleWishlist = async (e: React.MouseEvent) => {

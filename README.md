@@ -146,6 +146,7 @@ Running v4 on an existing v3 database auto-adds missing columns (`floors`, `agen
 
 ```env
 PORT=3001
+NODE_ENV=development
 JWT_SECRET=your-secret-key-here
 DB_PATH=./data/propestate360.db
 ADMIN_NAME=Arpan
@@ -153,10 +154,13 @@ ADMIN_EMAIL=arpan@propestate360.com
 ADMIN_PASSWORD=Admin@Secure123
 ADMIN_PHONE=9900112233
 FRONTEND_URL=http://localhost:5173
+FRONTEND_URLS=
 # Optional: Gmail for real OTP emails
 GMAIL_USER=your@gmail.com
-GMAIL_PASS=your-app-password
+GMAIL_APP_PASSWORD=your-app-password
 ```
+
+For production, keep real values in the host dashboard/server environment, not in a committed `.env` file. Set backend `NODE_ENV=production`, set `FRONTEND_URL` to the live frontend URL, and set frontend `VITE_API_URL` to the live backend URL when the frontend and backend are deployed on different domains.
 
 ---
 

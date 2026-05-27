@@ -8,23 +8,26 @@ const app  = express();
 const PORT = process.env.PORT || 3001;
 
 // ── Allowed Origins ──────────────────────────────────────────────────────────
-const allowedOrigins = [
-  process.env.FRONTEND_URL, // from Render env
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'http://localhost:5174',
-  'https://prop-estate360.vercel.app', // ⭐ your deployed frontend
-];
+const envOrigins = [
+  process.env.FRONTEND_URL,
+  ...(process.env.FRONTEND_URLS || '').split(','),
+  'https://prop-estate360.vercel.app',
+]
+  .map(origin => origin && origin.trim())
+  .filter(Boolean);
+
+const localOrigins = process.env.NODE_ENV === 'production'
+  ? []
+  : [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'http://localhost:5174',
+      'https://prop-estate360.vercel.app'
+    ];
+
+const allowedOrigins = [...new Set([...envOrigins, ...localOrigins])];
 
 // ── Middleware ───────────────────────────────────────────────────────────────
-// const ALLOWED_ORIGINS = [
-//   process.env.FRONTEND_URL,
-//   'http://localhost:5173',
-//   'http://localhost:3000',
-//   'http://localhost:5174',
-//   'https://prop-estate360.vercel.app',
-// ].filter(Boolean);
-
 app.use(cors({
   origin: function (origin, callback) {
     // allow requests with no origin (like Postman)
@@ -72,7 +75,7 @@ app.listen(PORT, () => {
   const props = db.prepare('SELECT COUNT(*) as c FROM properties').get().c;
   const users = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
   console.log(`\n🏡 PropEstate360 v4 Backend`);
-  console.log(`   Running on: http://localhost:${PORT}`);
+  console.log(`   Listening on port: ${PORT}`);
   console.log(`   Properties: ${props}`);
   console.log(`   Users:      ${users}`);
   console.log(`\n📋 API Endpoints:`);
