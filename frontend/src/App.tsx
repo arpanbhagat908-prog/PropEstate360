@@ -1218,6 +1218,7 @@ function RegisterPage({ nav, setUser, msg }: any) {
                 </div>
               ))}
             </div>
+            
           )}
 
           {/* Step 1 */}
